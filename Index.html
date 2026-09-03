@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>MARS // JARVIS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="scanlines" aria-hidden="true"></div>
+
+<div class="app-shell">
+
+  <!-- ============ SIDEBAR ============ -->
+  <nav class="sidebar" id="sidebar">
+    <div class="brand">
+      <div class="brand-mark">
+        <svg viewBox="0 0 40 40" class="brand-ring">
+          <circle cx="20" cy="20" r="17" class="ring-outer"/>
+          <circle cx="20" cy="20" r="11" class="ring-inner"/>
+          <circle cx="20" cy="20" r="3" class="ring-core"/>
+        </svg>
+      </div>
+      <div class="brand-text">
+        <span class="brand-title">MARS</span>
+        <span class="brand-sub">J.A.R.V.I.S — PHASE I</span>
+      </div>
+    </div>
+
+    <ul class="nav-list" id="navList">
+      <li class="nav-item active" data-section="home">
+        <span class="nav-icon" data-icon="home"></span>
+        <span class="nav-label">Home</span>
+      </li>
+      <li class="nav-item" data-section="memory">
+        <span class="nav-icon" data-icon="memory"></span>
+        <span class="nav-label">Memory</span>
+      </li>
+      <li class="nav-item" data-section="tasks">
+        <span class="nav-icon" data-icon="tasks"></span>
+        <span class="nav-label">Tasks</span>
+      </li>
+      <li class="nav-item" data-section="voice">
+        <span class="nav-icon" data-icon="voice"></span>
+        <span class="nav-label">Voice Console</span>
+      </li>
+      <li class="nav-item" data-section="settings">
+        <span class="nav-icon" data-icon="settings"></span>
+        <span class="nav-label">Settings</span>
+      </li>
+    </ul>
+
+    <div class="sidebar-status">
+      <div class="status-row">
+        <span class="status-dot" id="driveStatusDot"></span>
+        <span class="status-text" id="driveStatusText">Drive: disconnected</span>
+      </div>
+      <div class="status-row">
+        <span class="status-dot" id="micStatusDot"></span>
+        <span class="status-text" id="micStatusText">Mic: idle</span>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ============ MOBILE TOP BAR ============ -->
+  <header class="mobile-bar">
+    <button class="hamburger" id="hamburgerBtn" aria-label="Toggle navigation">
+      <span></span><span></span><span></span>
+    </button>
+    <span class="mobile-title">MARS // JARVIS</span>
+    <span class="mic-pulse-mini" id="micPulseMini"></span>
+  </header>
+
+  <!-- ============ MAIN CONTENT ============ -->
+  <main class="content">
+
+    <!-- ---------- HOME ---------- -->
+    <section class="view active" id="view-home">
+      <div class="view-head">
+        <h1 id="homeGreeting">Standing by.</h1>
+        <p class="view-sub" id="homeDate">—</p>
+      </div>
+
+      <div class="hud-grid">
+        <div class="hud-core glass-panel">
+          <svg viewBox="0 0 300 300" class="core-svg" id="coreSvg">
+            <circle cx="150" cy="150" r="130" class="core-ring core-ring-outer"/>
+            <circle cx="150" cy="150" r="105" class="core-ring core-ring-mid"/>
+            <circle cx="150" cy="150" r="80" class="core-ring core-ring-inner"/>
+            <circle cx="150" cy="150" r="55" class="core-ring core-ring-pulse"/>
+            <g class="core-ticks"></g>
+          </svg>
+          <div class="core-label">
+            <span class="core-state" id="coreState">SYSTEM READY</span>
+            <span class="core-sub">Say "Jarvis" to begin</span>
+          </div>
+        </div>
+
+        <div class="hud-side">
+          <div class="glass-panel stat-card">
+            <span class="stat-label">Notes Logged</span>
+            <span class="stat-value mono" id="statNotes">0</span>
+          </div>
+          <div class="glass-panel stat-card">
+            <span class="stat-label">Open Tasks</span>
+            <span class="stat-value mono" id="statTasks">0</span>
+          </div>
+          <div class="glass-panel stat-card">
+            <span class="stat-label">Sync Status</span>
+            <span class="stat-value mono" id="statSync">LOCAL</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="glass-panel log-panel">
+        <div class="panel-head">
+          <span>Activity Feed</span>
+        </div>
+        <ul class="activity-feed" id="activityFeed">
+          <li class="activity-empty">No activity yet. Connect Google Drive to begin logging.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ---------- MEMORY ---------- -->
+    <section class="view" id="view-memory">
+      <div class="view-head">
+        <h1>Memory</h1>
+        <p class="view-sub">Notes stored in jarvis-data.json on Google Drive</p>
+      </div>
+
+      <div class="glass-panel toolbar">
+        <input type="text" id="noteSearch" class="hud-input" placeholder="Search notes...">
+        <button class="hud-btn primary" id="newNoteBtn">+ New Note</button>
+      </div>
+
+      <div class="card-grid" id="notesGrid">
+        <p class="empty-hint">No notes yet. Say "Jarvis, save note..." or add one manually.</p>
+      </div>
+    </section>
+
+    <!-- ---------- TASKS ---------- -->
+    <section class="view" id="view-tasks">
+      <div class="view-head">
+        <h1>Tasks</h1>
+        <p class="view-sub">Priority-sorted operations queue</p>
+      </div>
+
+      <div class="glass-panel toolbar task-toolbar">
+        <input type="text" id="taskInput" class="hud-input" placeholder="New task...">
+        <select id="taskPriority" class="hud-select">
+          <option value="low">Low</option>
+          <option value="medium" selected>Medium</option>
+          <option value="high">High</option>
+        </select>
+        <button class="hud-btn primary" id="addTaskBtn">Add</button>
+      </div>
+
+      <div class="task-columns">
+        <div class="task-column">
+          <h3 class="task-col-title">Pending</h3>
+          <ul class="task-list" id="pendingTaskList"></ul>
+        </div>
+        <div class="task-column">
+          <h3 class="task-col-title">Completed</h3>
+          <ul class="task-list" id="completedTaskList"></ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ---------- VOICE CONSOLE ---------- -->
+    <section class="view" id="view-voice">
+      <div class="view-head">
+        <h1>Voice Console</h1>
+        <p class="view-sub">Wake word: <span class="mono accent-text">"Jarvis"</span></p>
+      </div>
+
+      <div class="voice-console glass-panel">
+        <div class="mic-orb-wrap">
+          <div class="mic-orb" id="micOrb">
+            <svg viewBox="0 0 120 120" class="orb-rings">
+              <circle cx="60" cy="60" r="56" class="orb-ring orb-ring-1"/>
+              <circle cx="60" cy="60" r="44" class="orb-ring orb-ring-2"/>
+              <circle cx="60" cy="60" r="32" class="orb-ring orb-ring-3"/>
+            </svg>
+            <span class="mic-icon" id="micIconGlyph">🎙</span>
+          </div>
+          <span class="voice-state-label" id="voiceStateLabel">IDLE</span>
+        </div>
+
+        <div class="voice-controls">
+          <button class="hud-btn" id="continuousToggleBtn">Enable Continuous Listening</button>
+          <button class="hud-btn" id="pushToTalkBtn">Hold to Talk</button>
+          <button class="hud-btn danger-outline" id="muteBtn">Mute</button>
+        </div>
+
+        <div class="transcript-box mono" id="transcriptBox">Awaiting input...</div>
+      </div>
+
+      <div class="glass-panel log-panel">
+        <div class="panel-head"><span>Command History</span>
+          <button class="hud-btn tiny" id="clearHistoryBtn">Clear</button>
+        </div>
+        <ul class="command-history" id="commandHistory">
+          <li class="activity-empty">No commands yet.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ---------- SETTINGS ---------- -->
+    <section class="view" id="view-settings">
+      <div class="view-head">
+        <h1>Settings</h1>
+        <p class="view-sub">Account, voice, and data controls</p>
+      </div>
+
+      <div class="glass-panel settings-block">
+        <h3 class="settings-title">Google Account</h3>
+        <p class="settings-desc" id="accountDesc">Not connected. Sign in to enable persistent memory on Google Drive.</p>
+        <div class="settings-row">
+          <button class="hud-btn primary" id="signInBtn">Sign in with Google</button>
+          <button class="hud-btn danger-outline" id="signOutBtn" style="display:none;">Disconnect</button>
+        </div>
+      </div>
+
+      <div class="glass-panel settings-block">
+        <h3 class="settings-title">Voice Output</h3>
+        <div class="settings-row">
+          <label class="settings-label" for="voiceSelect">Synthesis Voice</label>
+          <select id="voiceSelect" class="hud-select wide"></select>
+        </div>
+        <div class="settings-row">
+          <label class="settings-label" for="assistantName">Assistant Name</label>
+          <input type="text" id="assistantName" class="hud-input" value="Jarvis" disabled>
+        </div>
+      </div>
+
+      <div class="glass-panel settings-block">
+        <h3 class="settings-title">Data</h3>
+        <p class="settings-desc">All memory lives in <span class="mono accent-text">jarvis-data.json</span> inside your Google Drive app folder.</p>
+        <div class="settings-row">
+          <button class="hud-btn" id="viewRawBtn">View Raw Memory</button>
+          <button class="hud-btn danger-outline" id="wipeMemoryBtn">Wipe Memory</button>
+        </div>
+      </div>
+
+      <div class="glass-panel settings-block">
+        <h3 class="settings-title">About</h3>
+        <p class="settings-desc">MARS // JARVIS — Phase I: Foundation.<br>Stack: HTML, CSS, vanilla JS, Web Speech API, Google Drive API. No backend, no database — Drive is the only persistence layer.</p>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- ============ MODAL: NOTE EDITOR ============ -->
+<div class="modal-overlay" id="noteModalOverlay">
+  <div class="modal glass-panel">
+    <h3 id="noteModalTitle">New Note</h3>
+    <input type="text" id="noteTitleInput" class="hud-input" placeholder="Title">
+    <textarea id="noteBodyInput" class="hud-textarea" placeholder="Write it down..."></textarea>
+    <div class="modal-actions">
+      <button class="hud-btn" id="noteCancelBtn">Cancel</button>
+      <button class="hud-btn primary" id="noteSaveBtn">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODAL: RAW DATA ============ -->
+<div class="modal-overlay" id="rawModalOverlay">
+  <div class="modal glass-panel wide-modal">
+    <h3>Raw Memory — jarvis-data.json</h3>
+    <pre class="raw-json mono" id="rawJsonView"></pre>
+    <div class="modal-actions">
+      <button class="hud-btn primary" id="rawCloseBtn">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
