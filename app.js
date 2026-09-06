@@ -1,6 +1,7 @@
 /* ==========================================================
-   MARS // JARVIS — Phase I application logic
+   AXIOM — Phase I+ application logic
    No framework, no backend. Google Drive is the only database.
+   Gemini (optional) provides real conversational understanding.
    ========================================================== */
 
 (function () {
@@ -15,12 +16,13 @@
     tokenClient: null,
     fileId: null,
     saveTimer: null,
-    isListening: false,      // continuous mode on/off
-    isAwake: false,          // wake word triggered, awaiting command
+    isListening: false,
+    isAwake: false,
     isMuted: false,
     isPushToTalk: false,
     recognition: null,
     awakeTimeout: null,
+    pendingImage: null,
     data: {
       notes: [],
       tasks: [],
@@ -32,6 +34,12 @@
 
   const $ = (sel) => document.querySelector(sel);
   const $all = (sel) => Array.from(document.querySelectorAll(sel));
+
+  function escapeHtml(str) {
+    const div = document.createElement("div");
+    div.textContent = str;
+    return div.innerHTML;
+  }
 
   /* ---------------------------------------------------------
      TOAST + ACTIVITY LOG
@@ -59,40 +67,18 @@
     while (feed.children.length > 25) feed.removeChild(feed.lastChild);
   }
 
-  function logCommand(text, kind) {
-    const list = $("#commandHistory");
-    const empty = list.querySelector(".activity-empty");
-    if (empty) empty.remove();
-    const li = document.createElement("li");
-    li.style.borderLeftColor = kind === "user" ? "var(--accent)" : "var(--accent-warm)";
-    li.innerHTML = `${escapeHtml(text)}<time>${timeNow()}</time>`;
-    list.prepend(li);
-    while (list.children.length > 40) list.removeChild(list.lastChild);
-  }
-
-  function escapeHtml(str) {
-    const div = document.createElement("div");
-    div.textContent = str;
-    return div.innerHTML;
-  }
-
   /* ---------------------------------------------------------
-     NAVIGATION
+     NAVIGATION (sidebar + bottom nav share the same buttons)
      --------------------------------------------------------- */
-  function initNav() {
-    $all(".nav-item").forEach((item) => {
-      item.addEventListener("click", () => {
-        $all(".nav-item").forEach((i) => i.classList.remove("active"));
-        item.classList.add("active");
-        const section = item.dataset.section;
-        $all(".view").forEach((v) => v.classList.remove("active"));
-        $(`#view-${section}`).classList.add("active");
-        $("#sidebar").classList.remove("open");
-      });
-    });
+  function switchToView(section) {
+    $all(".nav-item, .bnav-item").forEach((i) => i.classList.toggle("active", i.dataset.section === section));
+    $all(".view").forEach((v) => v.classList.remove("active"));
+    $(`#view-${section}`).classList.add("active");
+  }
 
-    $("#hamburgerBtn").addEventListener("click", () => {
-      $("#sidebar").classList.toggle("open");
+  function initNav() {
+    $all(".nav-item, .bnav-item").forEach((item) => {
+      item.addEventListener("click", () => switchToView(item.dataset.section));
     });
   }
 
@@ -107,12 +93,17 @@
     setInterval(tick, 1000);
   }
 
+  function initGreeting() {
+    const hour = new Date().getHours();
+    const greeting = hour < 12 ? "Good morning." : hour < 18 ? "Good afternoon." : "Good evening.";
+    $("#homeGreeting").textContent = greeting;
+  }
+
   /* ---------------------------------------------------------
      GOOGLE AUTH (Google Identity Services — token model)
      --------------------------------------------------------- */
   function initGoogleAuth() {
     if (typeof google === "undefined" || !google.accounts) {
-      // GIS script may not have loaded yet; retry shortly.
       setTimeout(initGoogleAuth, 400);
       return;
     }
@@ -149,9 +140,7 @@
   }
 
   function signOut() {
-    if (state.accessToken) {
-      google.accounts.oauth2.revoke(state.accessToken, () => {});
-    }
+    if (state.accessToken) google.accounts.oauth2.revoke(state.accessToken, () => {});
     state.accessToken = null;
     state.isSignedIn = false;
     state.fileId = null;
@@ -166,7 +155,7 @@
     if (state.isSignedIn) {
       dot.classList.add("on");
       text.textContent = "Drive: connected";
-      $("#accountDesc").textContent = "Connected. Notes, tasks, and conversation history sync to jarvis-data.json.";
+      $("#accountDesc").textContent = "Connected. Notes, tasks, and conversation history sync to axiom-data.json.";
       $("#signInBtn").style.display = "none";
       $("#signOutBtn").style.display = "inline-block";
       $("#statSync").textContent = "SYNCED";
@@ -181,9 +170,6 @@
 
   /* ---------------------------------------------------------
      DRIVE PERSISTENCE
-     jarvis-data.json lives in the app-data folder (drive.file scope,
-     appDataFolder space) — invisible clutter-free storage tied only
-     to this app.
      --------------------------------------------------------- */
   const DRIVE_FILES_URL = "https://www.googleapis.com/drive/v3/files";
   const DRIVE_UPLOAD_URL = "https://www.googleapis.com/upload/drive/v3/files";
@@ -202,11 +188,8 @@
   }
 
   async function createDataFile() {
-    const metadata = {
-      name: JARVIS_CONFIG.DATA_FILENAME,
-      parents: ["appDataFolder"]
-    };
-    const boundary = "jarvis_boundary_" + Date.now();
+    const metadata = { name: JARVIS_CONFIG.DATA_FILENAME, parents: ["appDataFolder"] };
+    const boundary = "axiom_boundary_" + Date.now();
     const body =
       `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n` +
       JSON.stringify(metadata) +
@@ -229,7 +212,7 @@
       let id = await findDataFile();
       if (!id) {
         id = await createDataFile();
-        toast("Created jarvis-data.json on Drive.");
+        toast("Created axiom-data.json on Drive.");
       }
       state.fileId = id;
       const res = await fetch(`${DRIVE_FILES_URL}/${id}?alt=media`, { headers: authHeaders() });
@@ -262,7 +245,7 @@
         console.error(err);
         $("#statSync").textContent = "ERROR";
       }
-    }, 600); // debounce rapid edits
+    }, 600);
   }
 
   function persist() {
@@ -271,12 +254,12 @@
   }
 
   /* ---------------------------------------------------------
-     NOTES: create / edit / delete / search
+     NOTES
      --------------------------------------------------------- */
   function createNote(title, body) {
     const note = {
       id: "n_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-      title: title && title.trim() ? title.trim() : body.slice(0, 30) || "Untitled note",
+      title: title && title.trim() ? title.trim() : (body || "").slice(0, 30) || "Untitled note",
       body: body || "",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
@@ -321,7 +304,7 @@
 
     if (!notes.length) {
       grid.innerHTML = `<p class="empty-hint">${
-        query ? "No notes match your search." : 'No notes yet. Say "Jarvis, save note..." or add one manually.'
+        query ? "No notes match your search." : 'No notes yet. Say "Axiom, save note..." or add one manually.'
       }</p>`;
       return;
     }
@@ -361,7 +344,7 @@
   }
 
   /* ---------------------------------------------------------
-     TASKS: add / complete / delete / priority
+     TASKS
      --------------------------------------------------------- */
   function addTask(text, priority) {
     const task = {
@@ -439,139 +422,145 @@
   function renderAll() {
     renderNotes();
     renderTasks();
+    renderChatLog();
   }
 
   /* ---------------------------------------------------------
-     SPEECH SYNTHESIS
+     CHAT LOG (text + voice + image conversation, with memory)
      --------------------------------------------------------- */
-  function populateVoices() {
-    const select = $("#voiceSelect");
-    const voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
-    if (!voices.length) return;
-    select.innerHTML = "";
-    voices.forEach((v, i) => {
-      const opt = document.createElement("option");
-      opt.value = v.voiceURI;
-      opt.textContent = `${v.name} (${v.lang})`;
-      select.appendChild(opt);
+  function trimConversations() {
+    if (state.data.conversations.length > 60) {
+      state.data.conversations = state.data.conversations.slice(-60);
+    }
+  }
+
+  function renderChatLog() {
+    const log = $("#chatLog");
+    if (!log) return;
+    const msgs = state.data.conversations;
+    if (!msgs.length) {
+      log.innerHTML = `<div class="chat-empty">No conversation yet. Type, talk, or attach an image below.</div>`;
+      return;
+    }
+    log.innerHTML = msgs.map((m) => {
+      const cls = m.role === "user" ? "user" : "axiom";
+      const imgHtml = m.image ? `<img src="${m.image}" alt="attached image">` : "";
+      const textHtml = m.text ? escapeHtml(m.text) : "";
+      const timeHtml = `<time>${new Date(m.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</time>`;
+      return `<div class="chat-bubble ${cls}">${textHtml}${imgHtml}${timeHtml}</div>`;
+    }).join("");
+    log.scrollTop = log.scrollHeight;
+  }
+
+  function addAxiomReply(text) {
+    state.data.conversations.push({ role: "axiom", text, at: new Date().toISOString() });
+    trimConversations();
+    persist();
+    renderChatLog();
+    speak(text);
+  }
+
+  async function sendChatMessage(text, imageDataUrl) {
+    text = (text || "").trim();
+    if (!text && !imageDataUrl) return;
+
+    state.data.conversations.push({
+      role: "user",
+      text,
+      image: imageDataUrl || null,
+      at: new Date().toISOString()
     });
-    if (state.data.settings.voiceURI) select.value = state.data.settings.voiceURI;
+    trimConversations();
+    persist();
+    renderChatLog();
+
+    let reply = null;
+    if (!imageDataUrl) reply = tryLocalCommand(text);
+
+    if (reply !== null) {
+      addAxiomReply(reply);
+      return;
+    }
+
+    const pendingMsg = { role: "axiom", text: "…", at: new Date().toISOString() };
+    state.data.conversations.push(pendingMsg);
+    renderChatLog();
+    setVoiceVisualState("speaking");
+
+    const aiReply = await callGemini(text, imageDataUrl);
+    pendingMsg.text = aiReply;
+    persist();
+    renderChatLog();
+    speak(aiReply);
   }
 
-  function speak(text) {
-    if (state.isMuted || !("speechSynthesis" in window)) return;
-    window.speechSynthesis.cancel();
-    const utter = new SpeechSynthesisUtterance(text);
-    const voices = window.speechSynthesis.getVoices();
-    const chosen = voices.find((v) => v.voiceURI === state.data.settings.voiceURI);
-    if (chosen) utter.voice = chosen;
-    utter.rate = 1.02;
-    utter.pitch = 0.95;
+  /* ---------------------------------------------------------
+     GEMINI (optional AI brain — free tier, no billing = no cost)
+     --------------------------------------------------------- */
+  async function callGemini(userText, imageDataUrl) {
+    if (!JARVIS_CONFIG.GEMINI_API_KEY || JARVIS_CONFIG.GEMINI_API_KEY.startsWith("PASTE_YOUR")) {
+      return "My AI brain isn't connected yet — add a free Gemini API key in config.js.";
+    }
+    try {
+      const recent = state.data.conversations.slice(-9, -1);
+      const contents = recent
+        .filter((m) => m.text || m.image)
+        .map((m) => {
+          const parts = [];
+          if (m.text) parts.push({ text: m.text });
+          if (m.image) {
+            const match = m.image.match(/^data:(.*?);base64,(.*)$/);
+            if (match) parts.push({ inlineData: { mimeType: match[1], data: match[2] } });
+          }
+          return { role: m.role === "user" ? "user" : "model", parts };
+        });
 
-    utter.onstart = () => setVoiceVisualState("speaking");
-    utter.onend = () => setVoiceVisualState(state.isListening ? "listening" : "idle");
+      const currentParts = [];
+      if (userText) currentParts.push({ text: userText });
+      if (imageDataUrl) {
+        const match = imageDataUrl.match(/^data:(.*?);base64,(.*)$/);
+        if (match) currentParts.push({ inlineData: { mimeType: match[1], data: match[2] } });
+      }
+      contents.push({ role: "user", parts: currentParts });
 
-    window.speechSynthesis.speak(utter);
-    logCommand(text, "jarvis");
-  }
-
-  function setVoiceVisualState(mode) {
-    const orb = $("#micOrb");
-    const label = $("#voiceStateLabel");
-    const coreState = $("#coreState");
-    orb.classList.remove("listening", "speaking");
-    coreState.classList.remove("listening", "speaking");
-    if (mode === "listening") {
-      orb.classList.add("listening");
-      label.textContent = "LISTENING";
-      coreState.textContent = "LISTENING";
-      coreState.classList.add("listening");
-    } else if (mode === "speaking") {
-      orb.classList.add("speaking");
-      label.textContent = "SPEAKING";
-      coreState.textContent = "RESPONDING";
-      coreState.classList.add("speaking");
-    } else if (mode === "awake") {
-      orb.classList.add("listening");
-      label.textContent = "AWAITING COMMAND";
-      coreState.textContent = "AWAKE";
-      coreState.classList.add("listening");
-    } else {
-      label.textContent = "IDLE";
-      coreState.textContent = "SYSTEM READY";
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${JARVIS_CONFIG.GEMINI_MODEL}:generateContent?key=${JARVIS_CONFIG.GEMINI_API_KEY}`;
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents,
+          systemInstruction: {
+            parts: [{ text: "You are Axiom, a concise personal AI assistant living in a phone app. Keep replies short (1-3 sentences) and conversational, since they may be read aloud." }]
+          }
+        })
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        console.error(json);
+        return "I hit an error reaching my AI brain: " + (json.error && json.error.message ? json.error.message : res.status);
+      }
+      const parts = json.candidates && json.candidates[0] && json.candidates[0].content && json.candidates[0].content.parts;
+      const text = parts ? parts.map((p) => p.text || "").join(" ").trim() : "";
+      return text || "I didn't get a clear response back.";
+    } catch (err) {
+      console.error(err);
+      return "I couldn't reach the AI service — check your connection.";
     }
   }
 
   /* ---------------------------------------------------------
-     SPEECH RECOGNITION + WAKE WORD + COMMAND PARSER
+     LOCAL FAST COMMANDS (no AI needed — notes & tasks)
      --------------------------------------------------------- */
-  function getRecognitionCtor() {
-    return window.SpeechRecognition || window.webkitSpeechRecognition || null;
-  }
+  function tryLocalCommand(raw) {
+    const cmd = raw.toLowerCase().trim();
+    let m;
 
-  function initRecognition() {
-    const Ctor = getRecognitionCtor();
-    if (!Ctor) {
-      $("#transcriptBox").textContent = "Speech recognition is not supported in this browser. Try Chrome.";
-      $("#continuousToggleBtn").disabled = true;
-      $("#pushToTalkBtn").disabled = true;
-      return;
+    if ((m = cmd.match(/^(?:save|add|make|create)\s+note[s]?\s*(?:that says|saying|about)?\s*(.*)$/))) {
+      const body = m[1] || raw;
+      createNote(null, body || raw);
+      return "I have saved your note.";
     }
-    const rec = new Ctor();
-    rec.continuous = true;
-    rec.interimResults = true;
-    rec.lang = "en-US";
-
-    rec.onresult = (event) => {
-      let finalTranscript = "";
-      let interim = "";
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const transcript = event.results[i][0].transcript;
-        if (event.results[i].isFinal) finalTranscript += transcript;
-        else interim += transcript;
-      }
-      $("#transcriptBox").textContent = (finalTranscript || interim || "Listening...").trim();
-      if (finalTranscript) handleHeardSpeech(finalTranscript.trim());
-    };
-
-    rec.onerror = (e) => {
-      console.warn("Speech recognition error:", e.error);
-      if (e.error === "not-allowed") {
-        toast("Microphone permission denied.");
-        stopContinuousListening();
-      }
-    };
-
-    rec.onend = () => {
-      // auto-restart if continuous mode is still supposed to be on
-      if (state.isListening && !state.isPushToTalk) {
-        try { rec.start(); } catch (e) { /* already started */ }
-      }
-    };
-
-    state.recognition = rec;
-  }
-
-  function handleHeardSpeech(text) {
-    const lower = text.toLowerCase();
-    const wake = JARVIS_CONFIG.WAKE_WORD.toLowerCase();
-
-    if (state.isAwake) {
-      // We already got the wake word previously; treat this whole utterance as the command.
-      clearTimeout(state.awakeTimeout);
-      processCommand(text);
-      return;
-    }
-
-    const idx = lower.indexOf(wake);
-    if (idx === -1) return; // ignore ambient speech without wake word
-
-    const after = text.slice(idx + wake.length).trim();
-    if (after.length > 0) {
-      processCommand(after);
-    } else {
-      // Wake word alone — open a short window to receive the command
-      state.isAwake = true;
-      setVoiceVisualState("awake");
-      speak("Yes?");
-      state.awakeTimeout = setTimeout
+    if (/^(show|read|list)\s+(my\s+)?notes?$/.test(cmd)) {
+      const notes = state.data.notes.slice(0, 5);
+      if (!notes.length) return "You have no notes saved.";
+      retur
