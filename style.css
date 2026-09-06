@@ -67,4 +67,30 @@ body {
   background: rgba(9, 16, 22, 0.7);
   backdrop-filter: blur(18px);
   border-right: 1px solid var(--glass-border);
-  display
+  display: flex; flex-direction: column;
+  padding: 24px 16px; position: sticky; top: 0; height: 100vh; z-index: 50;
+}
+.brand { display: flex; align-items: center; gap: 12px; margin-bottom: 30px; padding: 0 4px; }
+.brand-mark { width: 36px; height: 36px; flex-shrink: 0; }
+.brand-ring { width: 100%; height: 100%; }
+.ring-outer { fill: none; stroke: var(--accent-dim); stroke-width: 1.4; }
+.ring-inner { fill: none; stroke: var(--accent); stroke-width: 1.4; stroke-dasharray: 10 6; animation: spin 8s linear infinite; transform-origin: center; }
+.ring-core { fill: var(--accent); filter: drop-shadow(0 0 6px var(--accent)); }
+@keyframes spin { to { transform: rotate(360deg); } }
+.brand-text { display: flex; flex-direction: column; line-height: 1.15; }
+.brand-title { font-family: var(--font-display); font-weight: 900; font-size: 18px; letter-spacing: 0.06em; color: var(--text-primary); }
+.brand-sub { font-family: var(--font-mono); font-size: 9px; color: var(--accent); letter-spacing: 0.1em; }
+
+.nav-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; flex: 1; }
+.nav-item {
+  display: flex; align-items: center; gap: 14px; padding: 11px 14px; border-radius: 10px; cursor: pointer;
+  color: var(--text-dim); border: 1px solid transparent; font-weight: 600; font-size: 14.5px;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.nav-item:hover { background: rgba(79, 227, 255, 0.06); color: var(--text-primary); }
+.nav-item.active { background: rgba(79, 227, 255, 0.1); border-color: var(--glass-border-strong); color: var(--accent); }
+
+.nav-icon { width: 18px; height: 18px; flex-shrink: 0; position: relative; display: inline-block; }
+.nav-icon::before, .nav-icon::after { content: ""; position: absolute; border: 1.6px solid currentColor; }
+.nav-icon[data-icon="home"]::before { inset: 4px 0 0 0; width: 18px; height: 12px; clip-path: polygon(50% 0, 100% 45%, 100% 100%, 0 100%, 0 45%); border: none; background: currentColor; opacity: 0.85; }
+.nav-icon[data-
